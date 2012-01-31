@@ -51,13 +51,15 @@ THREAD_CFLAGS = @THREAD_CFLAGS@
 
 LIBDJVU = ${top_builddir}/libdjvu/libdjvulibre.la
 
+MYSQLLIBS = -L/usr/lib/mysql -lmysqlclient
+MYSQLFLAGS = -I/usr/include/mysql
+
 INCS = -I${top_builddir} -I${top_srcdir} -I${top_srcdir}/libdjvu -I${srcdir}
 FLAGS = ${DEFS} ${INCS} ${OPTS} ${JPEG_CFLAGS} ${TIFF_CFLAGS} ${THREAD_CFLAGS}
 LIBS= @LDFLAGS@ @LIBS@
 MORELIBS= @LDFLAGS@ ${TIFF_LIBS} @LIBS@
 CFLAGS = ${FLAGS} @CPPFLAGS@ @CFLAGS@ 
-CXXFLAGS = ${FLAGS} ${CXXRPOFLAGS} @CPPFLAGS@ @CXXFLAGS@ 
-
+CXXFLAGS = ${FLAGS} ${CXXRPOFLAGS} ${MYSQLFLAGS} @CPPFLAGS@ @CXXFLAGS@ 
 SUBDIRS = jb2cmp
 
 PROGRAMS = bzz c44 cjb2 cpaldjvu csepdjvu \
@@ -181,6 +183,10 @@ djvuserve: djvuserve.o
 inhdict: inhdict.o
 	${LIBTOOL} --mode=link \
 	  ${CXX} -o $@ ${CXXFLAGS} inhdict.o ${LIBDJVU} ${LIBS}
+
+exportshapes: exportshapes.o
+	${LIBTOOL} --mode=link \
+	  ${CXX} -o $@ ${CXXFLAGS} exportshapes.o ${LIBDJVU} ${LIBS} ${MYSQLLIBS}
 
 ${PROGRAMS}: ${LIBDJVU}
 

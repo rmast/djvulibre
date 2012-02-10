@@ -186,7 +186,7 @@ inhdict: inhdict.o
 
 exportshapes: exportshapes.o
 	${LIBTOOL} --mode=link \
-	  ${CXX} -o $@ ${CXXFLAGS} exportshapes.o ${LIBDJVU} ${LIBS} ${MYSQLLIBS}
+	  ${CXX} -o $@ ${CXXFLAGS} -Wuninitialized exportshapes.o ${LIBDJVU} ${LIBS} ${MYSQLLIBS}
 
 ${PROGRAMS}: ${LIBDJVU}
 

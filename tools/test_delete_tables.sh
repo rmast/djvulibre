@@ -14,11 +14,10 @@
 # http://www.cyberciti.biz/faq/how-do-i-empty-mysql-database/
 # ---------------------------------------------------
  
-MUSER="tester"
-MPASS="test"
-MDB="exported_shapes"
- 
-MHOST="localhost"
+MUSER="$1"
+MPASS="$2"
+MDB="$3"
+MHOST="$4"
  
 # Detect paths
 MYSQL=$(which mysql)
@@ -48,6 +47,3 @@ do
 	echo "Deleting $t table from $MDB database..."
 	$MYSQL -u $MUSER -p$MPASS -h $MHOST $MDB -e "drop table $t"
 done
-
-$MYSQL -u $MUSER --password=$MPASS --verbose -D $MDB < shape.sql
-

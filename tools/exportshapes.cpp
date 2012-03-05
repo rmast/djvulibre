@@ -2,13 +2,14 @@
  * export shapes
  *
  *  Created on: Jan 16, 2012
- *      Author: zasvid
+ *      Author: Piotr Sikora
  */
 
 #include <iostream>
 #include <exception>
 #include <string>
 #include <map>
+#include <vector>
 
 #include <mysql.h>
 
@@ -16,6 +17,7 @@
 
 #include <DjVuDocument.h>
 #include <DjVuImage.h>
+#include <DjVmDir.h>
 #include <JB2Image.h>
 #include <Arrays.h>
 #include <GBitmap.h>
@@ -33,8 +35,7 @@ const char * get_schema_filename() {
 	return "shape.sql";
 }
 
-BoundingBox
- compute_bounding_box(const GBitmap &bm)
+BoundingBox compute_bounding_box(const GBitmap &bm)
 {
 	BoundingBox box;
 	// Avoid trouble - TODO: not in a single threaded program? //  GMonitorLock lock(bm.monitor());
@@ -89,85 +90,6 @@ BoundingBox
 	return box;
 }
 
-int store_document (char * document, MYSQL *conn) {
-    MYSQL_STMT *pinsert_stmt = mysql_stmt_init(conn);
-    BOOST_SCOPE_EXIT( (pinsert_stmt) ) {
-        mysql_stmt_close(pinsert_stmt);
-    } BOOST_SCOPE_EXIT_END
-
-    const char sql[] = "INSERT INTO documents(document) VALUES (?)";
-    if (mysql_stmt_prepare(pinsert_stmt, sql, strlen(sql)) != 0) {
-            cerr << "Error: mysql_stmt_prepare() failed to prepare `" << sql << "`:" << endl << mysql_stmt_error(pinsert_stmt) << endl;
-            return EXIT_FAILURE;
-    }
-    unsigned long length = 2 * strlen (document) + 1;
-    char prepared_document[length];
-
-  	cerr << "Error: mysql_real_escape_string() failed to escape document name " << document << " prepared to: " << prepared_document << endl;
-
-    unsigned long prepared_length = mysql_real_escape_string(conn, prepared_document, document, strlen(document));
-
-    MYSQL_BIND bind_structs[1];
-    memset(bind_structs, 0, sizeof(bind_structs));
-
-    bind_structs[0].length = &prepared_length;
-    bind_structs[0].buffer_type = MYSQL_TYPE_VAR_STRING;
-    bind_structs[0].is_null = 0;
-    bind_structs[0].buffer = (void *) &prepared_document;
-    bind_structs[0].buffer_length = strlen(prepared_document) * sizeof(char);
-
-    cout << (char *) bind_structs[0].buffer << endl;
-    if (mysql_stmt_bind_param(pinsert_stmt, bind_structs) != 0) {
-        cerr << "Error: mysql_stmt_bind_param() failed: " << endl << sql << endl;
-        return EXIT_FAILURE;
-    }
-
-    if (mysql_stmt_execute(pinsert_stmt) != 0) {
-        cerr << "Error: mysql_stmt_execute() failed: " << endl << sql << endl;
-        return EXIT_FAILURE;
-    }
-
-    return mysql_insert_id(conn);
-}
-
-int store_page(int document_id, int page_number, MYSQL *conn) {
-    MYSQL_STMT *pinsert_stmt = mysql_stmt_init(conn);
-    BOOST_SCOPE_EXIT( (pinsert_stmt) ) {
-        mysql_stmt_close(pinsert_stmt);
-    } BOOST_SCOPE_EXIT_END
-
-    const char sql[] = "INSERT INTO pages(document_id, page_number) VALUES (?,?)";
-    if (mysql_stmt_prepare(pinsert_stmt, sql, strlen(sql)) != 0) {
-            cerr << "Error: mysql_stmt_prepare() failed to prepare `" << sql << "`:" << endl << mysql_stmt_error(pinsert_stmt) << endl;
-            return EXIT_FAILURE;
-    }
-
-    MYSQL_BIND bind_structs[2];
-    memset(bind_structs, 0, sizeof(bind_structs));
-
-    bind_structs[0].buffer_type = MYSQL_TYPE_LONG;
-    //bind_structs[0].is_unsigned = 1;
-    bind_structs[0].is_null_value = 0;
-    bind_structs[0].buffer = (void *) &document_id;
-
-    bind_structs[1].buffer_type = MYSQL_TYPE_LONG;
-    //bind_structs[0].is_unsigned = 1;
-    bind_structs[1].is_null_value = 0;
-    bind_structs[1].buffer = (void *) &page_number;
-
-    if (mysql_stmt_bind_param(pinsert_stmt, bind_structs) != 0) {
-        cerr << "Error: mysql_stmt_bind_param() failed: " << endl << sql << endl;
-        return EXIT_FAILURE;
-    }
-
-    if (mysql_stmt_execute(pinsert_stmt) != 0) {
-        cerr << "Error: mysql_stmt_execute() failed: " << endl << sql << endl;
-        return EXIT_FAILURE;
-    }
-
-    return mysql_insert_id(conn);
-}
-
 
 /***
  *
@@ -176,30 +98,24 @@ int store_page(int document_id, int page_number, MYSQL *conn) {
  *
  *
  */
-int store_blit(int shape_id, int page_id, unsigned short b_left, unsigned short b_bottom, MYSQL *conn) {
+int store_blit(int shape_id, int doc_id, int page_number, unsigned short b_left, unsigned short b_bottom, MYSQL *conn) {
     MYSQL_STMT *pinsert_stmt = mysql_stmt_init(conn);
     BOOST_SCOPE_EXIT( (pinsert_stmt) ) {
         mysql_stmt_close(pinsert_stmt);
     } BOOST_SCOPE_EXIT_END
 
-    const char sql[] = "INSERT INTO blits(shape_id, b_left, b_bottom, page_id) VALUES (?,?,?,?)";
+    const char sql[] = "INSERT INTO blits(shape_id, b_left, b_bottom, page_number, document_id) VALUES (?,?,?,?,?)";
     if (mysql_stmt_prepare(pinsert_stmt, sql, strlen(sql)) != 0) {
             cerr << "Error: mysql_stmt_prepare() failed to prepare `" << sql << "`:" << endl << mysql_stmt_error(pinsert_stmt) << endl;
             return EXIT_FAILURE;
     }
 
-    MYSQL_BIND bind_structs[4];
+    MYSQL_BIND bind_structs[5];
     memset(bind_structs, 0, sizeof(bind_structs));
 
     bind_structs[0].buffer_type = MYSQL_TYPE_LONG;
-    //bind_structs[0].is_unsigned = 1;
     bind_structs[0].is_null_value = 0;
     bind_structs[0].buffer = (void *) &shape_id;
-
-    bind_structs[3].buffer_type = MYSQL_TYPE_LONG;
-    //bind_structs[3].is_unsigned = 1;
-    bind_structs[3].is_null_value = 0;
-    bind_structs[3].buffer = (void *) &page_id;
 
     bind_structs[1].buffer_type = MYSQL_TYPE_SHORT;
     bind_structs[1].is_unsigned = 1;
@@ -211,6 +127,15 @@ int store_blit(int shape_id, int page_id, unsigned short b_left, unsigned short 
     bind_structs[2].is_null_value = 0;
     bind_structs[2].buffer = (void *) &b_bottom;
 
+    bind_structs[3].buffer_type = MYSQL_TYPE_LONG;
+    bind_structs[3].is_unsigned = 1;
+    bind_structs[3].is_null_value = 0;
+    bind_structs[3].buffer = (void *) &page_number;
+
+    bind_structs[4].buffer_type = MYSQL_TYPE_LONG;
+    bind_structs[4].is_null_value = 0;
+    bind_structs[4].buffer = (void *) &doc_id;
+
     if (mysql_stmt_bind_param(pinsert_stmt, bind_structs) != 0) {
         cerr << "Error: mysql_stmt_bind_param() failed: " << endl << sql << endl;
         return EXIT_FAILURE;
@@ -224,26 +149,26 @@ int store_blit(int shape_id, int page_id, unsigned short b_left, unsigned short 
     return mysql_insert_id(conn);
 }
 
+
 /***
  *
  * store_shape stores a shape in the database
  * and returns it's autogenerated database index.
  *
  */
-int store_shape(GP<GBitmap> bits, int page_id, int parent, MYSQL *conn) {
+int store_shape(GP<GBitmap> bits, int dictionary_id, int parent, MYSQL *conn) {
     GP<ByteStream> bs = ByteStream::create();
     BoundingBox bbox;
     if (bits) {
         bits->save_pbm(*bs);
         bbox = compute_bounding_box(*(bits));
-        cout << bbox.top << ' ' << bbox.left << ' ' << bbox.right << ' ' << bbox.bottom << endl;
     }
     MYSQL_STMT *pinsert_stmt = mysql_stmt_init(conn);
     BOOST_SCOPE_EXIT( (pinsert_stmt) ) {
         mysql_stmt_close(pinsert_stmt);
     } BOOST_SCOPE_EXIT_END
 
-    const char sql[] = "INSERT INTO shapes(parent_id, bits, page_id, bbox_top, bbox_left, bbox_right, bbox_bottom) VALUES (?,?,?,?,?,?,?)";
+    const char sql[] = "INSERT INTO shapes(parent_id, bits, dictionary_id, bbox_top, bbox_left, bbox_right, bbox_bottom) VALUES (?,?,?,?,?,?,?)";
     if (mysql_stmt_prepare(pinsert_stmt, sql, strlen(sql)) != 0) {
             cerr << "Error: mysql_stmt_prepare() failed to prepare `" << sql << "`:" << endl << mysql_stmt_error(pinsert_stmt) << endl;
             return EXIT_FAILURE;
@@ -267,7 +192,7 @@ int store_shape(GP<GBitmap> bits, int page_id, int parent, MYSQL *conn) {
     // page_id
     bind_structs[2].buffer_type = MYSQL_TYPE_LONG;
     bind_structs[2].is_null_value = 0;
-    bind_structs[2].buffer = (void *) &page_id;
+    bind_structs[2].buffer = (void *) &dictionary_id;
 
     // bounding box
  //   my_bool bb_null[4];
@@ -318,74 +243,210 @@ int store_shape(GP<GBitmap> bits, int page_id, int parent, MYSQL *conn) {
     return mysql_insert_id(conn);
 }
 
-void export_shapes(GP<JB2Image> jimg, int page_id, MYSQL *conn) {
+int store_dictionary(int document_id, int page_number, string dict_name, MYSQL *conn) {
+    MYSQL_STMT *pinsert_stmt = mysql_stmt_init(conn);
+    BOOST_SCOPE_EXIT( (pinsert_stmt) ) {
+        mysql_stmt_close(pinsert_stmt);
+    } BOOST_SCOPE_EXIT_END
 
-    int sh_count = jimg->get_shape_count();
-    int blit_count = jimg->get_blit_count();
-    std::map<int, int> shape_id_translation; // translates from Dictionary indices to database entries
-    //vector<ShapeNode *> shapes_nodes(sh_count);
-    //QMultiHash<int, int> shapes_children;
-    for (int i = 0; i < sh_count; i++) {
-        JB2Shape shape = jimg->get_shape(i);
-
-        // if shape.parent in shape.indices
-        int parent_id = shape.parent >= 0 ? shape_id_translation[shape.parent] : shape.parent;
-
-        int shape_id = store_shape(shape.bits, page_id, parent_id,conn);
-        shape_id_translation.insert(IntPair(i,shape_id));
-    }
-    for (int i = 0; i < blit_count; i++) {
-    	JB2Blit *blit = jimg->get_blit(i);
-    	//TODO: blity tylko istniejących kształtów?
-    	if (blit && shape_id_translation[blit->shapeno]) {
-    	    		store_blit(shape_id_translation[blit->shapeno], page_id, blit->left, blit->bottom, conn);
-    	}
+    const char sql[] = "INSERT INTO dictionaries(document_id, page_number, dictionary_name) VALUES (?,?,?)";
+    if (mysql_stmt_prepare(pinsert_stmt, sql, strlen(sql)) != 0) {
+            cerr << "Error: mysql_stmt_prepare() failed to prepare `" << sql << "`:" << endl << mysql_stmt_error(pinsert_stmt) << endl;
+            return EXIT_FAILURE;
     }
 
+    const char * original_string = dict_name.c_str();
+    unsigned long length = 2 * strlen (original_string) + 1;
+    char prepared_string[length];
+    unsigned long prepared_length = mysql_real_escape_string(conn, prepared_string, original_string, strlen(original_string));
+
+    MYSQL_BIND bind_structs[3];
+    memset(bind_structs, 0, sizeof(bind_structs));
+
+    bind_structs[0].buffer_type = MYSQL_TYPE_LONG;
+    //bind_structs[0].is_unsigned = 1;
+    bind_structs[0].is_null_value = 0;
+    bind_structs[0].buffer = (void *) &document_id;
+
+    bind_structs[1].buffer_type = MYSQL_TYPE_LONG;
+    //bind_structs[1].is_unsigned = 1;
+    bind_structs[1].is_null_value = 0;
+    bind_structs[1].buffer = (void *) &page_number;
+
+    bind_structs[2].length = &prepared_length;
+    bind_structs[2].buffer_type = MYSQL_TYPE_VAR_STRING;
+    bind_structs[2].is_null = 0;
+    bind_structs[2].buffer = (void *) &prepared_string;
+    bind_structs[2].buffer_length = strlen(prepared_string) * sizeof(char);
+
+    if (mysql_stmt_bind_param(pinsert_stmt, bind_structs) != 0) {
+        cerr << "Error: mysql_stmt_bind_param() failed: " << endl << sql << endl;
+        return EXIT_FAILURE;
+    }
+
+    if (mysql_stmt_execute(pinsert_stmt) != 0) {
+        cerr << "Error: mysql_stmt_execute() failed: " << endl << sql << endl;
+        return EXIT_FAILURE;
+    }
+
+    return mysql_insert_id(conn);
 }
 
-/*
-void create_database(char * dbname; MYSQL *conn) {
 
+int process_document(GP<DjVuDocument> doc, int doc_id, MYSQL* conn) {
+	const int pages = doc->get_pages_num();
+	std::map<string, int> inherited_dictionary_translation;
+	std::map<IntPair, int> inherited_shape_translation; // Dictionary x shape number -> shape_id
 
-}*/
-/*
-int create_tables(MYSQL *conn) {
-	TODO: must be done in a bash script or execute the file line-by-line
-	const char * schema_filename = get_schema_filename();
-	const char * semicolon = ";";
-	const char * command = "SOURCE ";
-	size_t injection_query_len = strlen(command) + strlen(schema_filename) + strlen(semicolon) + 1;
-	char query[injection_query_len];
-	memset(query,0,sizeof(query));
-	strcat(query, command);
-	strcat(query,schema_filename);
-	strcat(query, semicolon);
+	for(int page_number = 0; page_number < pages; page_number++) {
 
-	const char * protoquery = "SOURCE shape.sql;";
+		GP<DjVuImage> djvu_page = doc->get_page(page_number);
 
-	char query[2*strlen(protoquery) + 1];
-	if (mysql_real_escape_string(conn, query, protoquery, strlen(protoquery)) != 0) {
-		std::cerr << "Database schema injection query could not be prepared. " << endl;
-		return EXIT_FAILURE;
+		if (!djvu_page) {
+			std::cout << "get_page failed";
+		} else {
+
+			GP<DjVuFile> djvu_file = djvu_page->get_djvu_file();
+			GP<JB2Image> jimg = djvu_page->get_fgjb();
+			if (!djvu_file) {
+				std::cout << "get_djvu_file failed";
+			} else if (!jimg) {
+				std::cout << "get_fgjb failed";
+			} else {//export shapes
+				std::cout << "Processing page " << page_number << " containing " << jimg->get_shape_count() << " shapes, " <<
+						jimg->get_inherited_shape_count() << " of them inherited." << std::endl;
+				GP<JB2Dict> inherited_dictionary = jimg->get_inherited_dict();
+				int inh_dict_id = -1;
+				int inh_sh_count = 0;
+				if (inherited_dictionary) {
+					// list included files
+					GPList<DjVuFile> included_files = djvu_file->get_included_files();
+					if (included_files.size() > 0) {
+						// find an included file corresponding to the inherited dictionary
+						for (GPosition i = included_files ; i; ++i) {
+							GP<DjVuFile> included_file = included_files[i];
+							//get the dictionary name
+
+							string dict_name = (string) included_file->get_url().fname();
+							// check if it is a previously known inherited dictionary
+							map<string,int>::iterator contains = inherited_dictionary_translation.find(dict_name);
+							if (contains!=inherited_dictionary_translation.end()) {
+								inh_dict_id = contains->second;
+							} else {
+								std::cout << "Found a new included file: " << dict_name << endl;
+								if (included_file->fgjd) {
+									std::cout << " It's an inherited dictionary containing "  << included_file->fgjd->get_shape_count() << " shapes." << endl;
+									// store the inherited dictionary
+									inh_dict_id = store_dictionary(doc_id, -1, dict_name, conn);
+									// remember the dictionary
+									inherited_dictionary_translation.insert(std::pair<string,int>(dict_name, inh_dict_id));
+									// store inherited shapes
+									inh_sh_count = jimg->get_inherited_shape_count();
+									for (int i = 0; i < inh_sh_count; i++) {
+										JB2Shape shape = jimg->get_shape(i);
+										int parent = shape.parent >= 0 ? inherited_shape_translation[IntPair(inh_dict_id, shape.parent)] : shape.parent;
+										int shape_id = store_shape(shape.bits, inh_dict_id, parent ,conn);
+										inherited_shape_translation.insert(std::pair<IntPair,int>(IntPair(inh_dict_id, i),shape_id));
+									}
+								}
+							}
+						}
+					}
+				}
+				//compute page dictionary parameters
+				std::map<int, int> page_shape_translation;
+				string page_name = (string) djvu_file->get_url().fname();
+				int sh_count = jimg->get_shape_count();
+				int blit_count = jimg->get_blit_count();
+				// store page dictionary
+				int page_dict_id = store_dictionary(doc_id,page_number,page_name,conn);
+
+				// store shapes
+				for (int i=inh_sh_count; i < sh_count;i++) {
+					JB2Shape shape = jimg->get_shape(i);
+					int parent;
+					if (shape.parent < 0) {
+						parent = shape.parent;
+					} else if (shape.parent < inh_sh_count) { // inherited parent
+						parent = inherited_shape_translation[IntPair(inh_dict_id,shape.parent)];
+					} else { // other parent
+						parent = page_shape_translation[shape.parent];
+					}
+					int shape_id = store_shape(shape.bits, page_dict_id, parent ,conn);
+					page_shape_translation.insert(IntPair(i,shape_id));
+				}
+
+				// store blits
+			    for (int i = 0; i < blit_count; i++) {
+			    	JB2Blit *blit = jimg->get_blit(i);
+			    	if (blit) {
+			    		int shape_id = -1;
+			    		if ((int) blit->shapeno < inh_sh_count) {
+			    			// shape from inherited dictionary
+			    			shape_id = inherited_shape_translation[IntPair(inh_dict_id, blit->shapeno)];
+			    		} else {
+			    			// shape from page dictionary
+			    			shape_id = page_shape_translation[blit->shapeno];
+			    		}
+			    		store_blit(shape_id, doc_id, page_number, blit->left, blit->bottom, conn);
+			    	}
+			    }
+			}
+		}
 	}
-
+	return EXIT_SUCCESS;
 }
-*/
+
+
+
 
 void usage(char **argv) {
-	std::cout << "Usage: " << argv[0] << " [-c | -i] -h <host> -d <database> -u <user> -p <password> <filename>" << std::endl;
-	std::cout << "Option -i injects tables required by exportshapes into the database. " << std::endl;
-	std::cout << "Option -c creates the database (with required tables)." << std::endl;
+	std::cout << "Usage: " << argv[0] << " -h <host> -d <database> -u <user> -p <password> <filename>" << std::endl;
+	//std::cout << "Option -i injects tables required by exportshapes into the database. " << std::endl;
+	//std::cout << "Option -c creates the database (with required tables)." << std::endl;
+}
+
+int store_document (char * document, MYSQL *conn) {
+    MYSQL_STMT *pinsert_stmt = mysql_stmt_init(conn);
+    BOOST_SCOPE_EXIT( (pinsert_stmt) ) {
+        mysql_stmt_close(pinsert_stmt);
+    } BOOST_SCOPE_EXIT_END
+
+    const char sql[] = "INSERT INTO documents(document) VALUES (?)";
+    if (mysql_stmt_prepare(pinsert_stmt, sql, strlen(sql)) != 0) {
+            cerr << "Error: mysql_stmt_prepare() failed to prepare `" << sql << "`:" << endl << mysql_stmt_error(pinsert_stmt) << endl;
+            return EXIT_FAILURE;
+    }
+    unsigned long length = 2 * strlen (document) + 1;
+    char prepared_document[length];
+
+    unsigned long prepared_length = mysql_real_escape_string(conn, prepared_document, document, strlen(document));
+
+    MYSQL_BIND bind_structs[1];
+    memset(bind_structs, 0, sizeof(bind_structs));
+
+    bind_structs[0].length = &prepared_length;
+    bind_structs[0].buffer_type = MYSQL_TYPE_VAR_STRING;
+    bind_structs[0].is_null = 0;
+    bind_structs[0].buffer = (void *) &prepared_document;
+    bind_structs[0].buffer_length = strlen(prepared_document) * sizeof(char);
+
+    cout << (char *) bind_structs[0].buffer << endl;
+    if (mysql_stmt_bind_param(pinsert_stmt, bind_structs) != 0) {
+        cerr << "Error: mysql_stmt_bind_param() failed: " << endl << sql << endl;
+        return EXIT_FAILURE;
+    }
+
+    if (mysql_stmt_execute(pinsert_stmt) != 0) {
+        cerr << "Error: mysql_stmt_execute() failed: " << endl << sql << endl;
+        return EXIT_FAILURE;
+    }
+
+    return mysql_insert_id(conn);
 }
 
 int main(int argc, char **argv) {
 	try {
-		//const char *db_name = "exported_shapes";
-		//const char *db_user = "tester";
-		//const char *db_host = "localhost";
-		//const char *db_passwd = "test";
-
 		const char *db_name;
 		const char *db_user;
 		const char *db_host;
@@ -396,7 +457,6 @@ int main(int argc, char **argv) {
 				usage(argv);
 				return 1;
 		}
-		bool create_db = false, inject_db = false;
 		while ((c = getopt (argc, argv, "d:u:h:p:")) != -1)
 			switch (c)
 		    {
@@ -412,19 +472,7 @@ int main(int argc, char **argv) {
 				case 'p':
 					db_passwd = optarg;
 					break;
-				case 'c':
-					create_db = true;
-					break;
-				case 'i':
-					inject_db = true;
-					break;
 				case '?':
-		  /*       if (optopt == 'd' || optopt == 'p' || optopt == 'h' || optopt == 'u')
-		        	 cerr << "Option -" << optopt << " requires an argument." << endl;
-		         else if (isprint (optopt))
-		        	 cerr << "Unknown option `-" << optopt <<"'." << endl;
-		         else
-		        	 cerr << "Unknown option character `" << optopt << "'." << endl;*/
 		    	 usage(argv);
 		         return 1;
 		       default:
@@ -444,28 +492,10 @@ int main(int argc, char **argv) {
 			mysql_close(conn);
 		} BOOST_SCOPE_EXIT_END
 
-		//const char * initial_db_name = create_db ? NULL : db_name;
-
 		if (!mysql_real_connect(conn, db_host, db_user, db_passwd, db_name, 0, NULL, CLIENT_COMPRESS)) {
 		        cerr << "Error: mysql_real_connect() failed to connect to `" << db_name << "`." << endl;
 		        return EXIT_FAILURE;
 		    }
-
-/*
-		if (create_db) {
-			int retval = create_database(db_name, conn);
-			if (retval != 0) {
-				std::cerr << "Database could not be created, cancelling execution." << endl;
-				return retval;
-			}
-		}
-
-		if (inject_db || create_db) {
-			if ( create_tables(conn) != 0) {
-				std::cerr << "Database schema could not be injected, cancelling further execution. " << endl;
-				return EXIT_FAILURE;
-			}
-		}*/
 
 		const GURL::Filename::UTF8 url(filename);
 		GP<DjVuDocument> doc = DjVuDocument::create_wait(url);
@@ -476,31 +506,12 @@ int main(int argc, char **argv) {
 		}
 
 		int doc_id = store_document(filename, conn);
-
-		const int pages = doc->get_pages_num();
-		for(int page = 0; page < pages; page++) {
-			std::cout << "processing page " << page << "... ";
-
-			GP<DjVuImage> dimg = doc->get_page(page);
-
-			int page_id = store_page(doc_id, page, conn);
-
-			if (!dimg) {
-				std::cout << "get_page failed";
-			} else {
-				GP<JB2Image> jimg = dimg->get_fgjb();
-				if (!jimg) {
-					std::cout << "get_fgjb failed";
-				} else {
-					export_shapes(jimg, page_id, conn);
-				}
-			}
-		}
-
+		return process_document(doc, doc_id, conn);
 	}
 	catch (exception& ex) {
 		std::cout << "An exception occurred: " << ex.what() << "\n";
 		return EXIT_FAILURE;
 	}
-	return EXIT_SUCCESS;
+	//return EXIT_SUCCESS;
 }
+

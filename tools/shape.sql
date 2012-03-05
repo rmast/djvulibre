@@ -17,9 +17,9 @@
 
 create table shapes (
 	id INT not null auto_increment primary key,
-	page_id INT not null,
 	parent_id INT not null,
 	bits LONGBLOB,
+	dictionary_id INT not null,
 	bbox_top INT,
 	bbox_left INT,
 	bbox_right INT,
@@ -28,7 +28,8 @@ create table shapes (
 
 create table blits (
 	id INT not null auto_increment primary key,
-	page_id INT not null,
+	document_id INT not null,
+	page_number INT not null,
 	shape_id INT not null,
 	b_left SMALLINT UNSIGNED not null,
 	b_bottom SMALLINT UNSIGNED not null
@@ -40,9 +41,10 @@ create table documents (
 	document varchar(60) not null
 );
 
-create table pages (
+create table dictionaries (
 	id INT not null auto_increment primary key,
-	page_number INT not null,
+	dictionary_name varchar(60) not null,
+	page_number INT not null, -- page number for page-specific dictionaries, -1 for shared dictionaries
 	document_id INT not null
 );
 

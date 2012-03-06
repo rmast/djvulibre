@@ -31,8 +31,48 @@ typedef struct {
 	int right, top, left, bottom;
 } BoundingBox;
 
-const char * get_schema_filename() {
-	return "shape.sql";
+
+
+
+int create_database(const char * dbname, MYSQL *conn) {
+	string query = "create database ";
+	query.append(dbname);
+	if (mysql_query(conn, query.c_str())) {
+		std::cerr << "Error " << mysql_errno(conn) << ": " <<  mysql_error(conn) << std::endl;
+		return 1;
+	}
+	return 0;
+}
+
+int create_tables(MYSQL *conn) { // create tables
+	if (mysql_query(conn,
+		"create table shapes (id INT not null auto_increment primary key,	parent_id INT not null,	bits LONGBLOB, dictionary_id INT not null,	bbox_top INT, bbox_left INT, bbox_right INT, bbox_bottom INT)"
+			)){
+		std::cerr << "Error during table creation: " << mysql_errno(conn) << ": " <<  mysql_error(conn) << std::endl;
+		return 1;
+	}
+	if (mysql_query(conn,
+		"create table blits (id INT not null auto_increment primary key, document_id INT not null, page_number INT not null, shape_id INT not null,	b_left SMALLINT UNSIGNED not null, b_bottom SMALLINT UNSIGNED not null);"
+			)){
+		std::cerr << "Error during table creation:  " << mysql_errno(conn) << ": " <<  mysql_error(conn) << std::endl;
+		return 1;
+	}
+	if (mysql_query(conn,
+		"create table documents (id INT not null auto_increment primary key, document varchar(60) not null);"
+			)){
+		std::cerr << "Error during table creation:  " << mysql_errno(conn) << ": " <<  mysql_error(conn) << std::endl;
+		return 1;
+	}
+	if (mysql_query(conn,
+		"create table dictionaries (id INT not null auto_increment primary key, dictionary_name varchar(60) not null, page_number INT not null, document_id INT not null);"
+			)){
+		std::cerr << "Error during table creation:  " << mysql_errno(conn) << ": " <<  mysql_error(conn) << std::endl;
+		return 1;
+	}
+
+	// -- page number for page-specific dictionaries, -1 for shared dictionaries
+
+	return 0;
 }
 
 BoundingBox compute_bounding_box(const GBitmap &bm)
@@ -401,9 +441,9 @@ int process_document(GP<DjVuDocument> doc, int doc_id, MYSQL* conn) {
 
 
 void usage(char **argv) {
-	std::cout << "Usage: " << argv[0] << " -h <host> -d <database> -u <user> -p <password> <filename>" << std::endl;
-	//std::cout << "Option -i injects tables required by exportshapes into the database. " << std::endl;
-	//std::cout << "Option -c creates the database (with required tables)." << std::endl;
+	std::cout << "Usage: " << argv[0] << "[-c | -i] -h <host> -d <database> -u <user> -p <password> <filename>" << std::endl;
+	std::cout << "Option -i creates tables required by exportshapes into the database. " << std::endl;
+	std::cout << "Option -c creates the database (with required tables)." << std::endl;
 }
 
 int store_document (char * document, MYSQL *conn) {
@@ -453,11 +493,12 @@ int main(int argc, char **argv) {
 		const char *db_passwd;
 		char *filename;
 		int c;
+		bool create_db = false, inject_db = false;
 		if (argc < 9) {
 				usage(argv);
 				return 1;
 		}
-		while ((c = getopt (argc, argv, "d:u:h:p:")) != -1)
+		while ((c = getopt (argc, argv, "icd:u:h:p:")) != -1)
 			switch (c)
 		    {
 				case 'd':
@@ -471,6 +512,12 @@ int main(int argc, char **argv) {
 					break;
 				case 'p':
 					db_passwd = optarg;
+					break;
+				case 'c':
+					create_db = true;
+					break;
+				case 'i':
+					inject_db = true;
 					break;
 				case '?':
 		    	 usage(argv);
@@ -492,10 +539,33 @@ int main(int argc, char **argv) {
 			mysql_close(conn);
 		} BOOST_SCOPE_EXIT_END
 
-		if (!mysql_real_connect(conn, db_host, db_user, db_passwd, db_name, 0, NULL, CLIENT_COMPRESS)) {
+		const char * initial_db_name = create_db ? NULL : db_name;
+
+		if (!mysql_real_connect(conn, db_host, db_user, db_passwd, initial_db_name, 0, NULL, CLIENT_COMPRESS)) {
 		        cerr << "Error: mysql_real_connect() failed to connect to `" << db_name << "`." << endl;
 		        return EXIT_FAILURE;
 		    }
+
+		if (create_db) {
+			int retval = create_database(db_name, conn);
+			if (retval != 0) {
+				std::cerr << "Database could not be created, cancelling execution." << endl;
+				return retval;
+			} else { // change to newly created database
+				if (mysql_change_user(conn, db_user, db_passwd, db_name)) {
+					std::cerr << "Failed to change user.  Error: " << mysql_error(conn) << std::endl;
+					return retval;
+				}
+
+			}
+		}
+
+		if (inject_db || create_db) {
+			if ( create_tables(conn) != 0) {
+				std::cerr << "Database schema could not be injected, cancelling further execution. " << endl;
+				return EXIT_FAILURE;
+			}
+		}
 
 		const GURL::Filename::UTF8 url(filename);
 		GP<DjVuDocument> doc = DjVuDocument::create_wait(url);

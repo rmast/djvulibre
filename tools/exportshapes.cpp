@@ -21,7 +21,7 @@
 #include <JB2Image.h>
 #include <Arrays.h>
 #include <GBitmap.h>
-#include <BSByteStream.h>
+#include <UnicodeByteStream.h>
 
 using namespace std;
 
@@ -34,7 +34,14 @@ typedef struct {
 
 
 
-int create_database(const char * dbname, MYSQL *conn) {
+int create_database(const char * dbname, MYSQL *conn, const bool overwrite) {
+	if (overwrite) {
+		string query = "drop database ";
+		query.append(dbname);
+		if (mysql_query(conn, query.c_str())) {
+			std::cerr << "Dropping the database failed:  " << mysql_errno(conn) << ": " <<  mysql_error(conn) << std::endl;
+		}
+	}
 	string query = "create database ";
 	query.append(dbname);
 	if (mysql_query(conn, query.c_str())) {
@@ -46,7 +53,7 @@ int create_database(const char * dbname, MYSQL *conn) {
 
 int create_tables(MYSQL *conn) { // create tables
 	if (mysql_query(conn,
-		"create table shapes (id INT not null auto_increment primary key,	parent_id INT not null,	bits LONGBLOB, dictionary_id INT not null,	bbox_top INT, bbox_left INT, bbox_right INT, bbox_bottom INT)"
+		"create table shapes (id INT not null auto_increment primary key, parent_id INT not null, bits LONGBLOB, width INT, height INT, dictionary_id INT not null, bbox_top INT, bbox_left INT, bbox_right INT, bbox_bottom INT)"
 			)){
 		std::cerr << "Error during table creation: " << mysql_errno(conn) << ": " <<  mysql_error(conn) << std::endl;
 		return 1;
@@ -208,13 +215,13 @@ int store_shape(GP<GBitmap> bits, int dictionary_id, int parent, MYSQL *conn) {
         mysql_stmt_close(pinsert_stmt);
     } BOOST_SCOPE_EXIT_END
 
-    const char sql[] = "INSERT INTO shapes(parent_id, bits, dictionary_id, bbox_top, bbox_left, bbox_right, bbox_bottom) VALUES (?,?,?,?,?,?,?)";
+    const char sql[] = "INSERT INTO shapes(parent_id, bits, dictionary_id, bbox_top, bbox_left, bbox_right, bbox_bottom, width, height) VALUES (?,?,?,?,?,?,?,?,?)";
     if (mysql_stmt_prepare(pinsert_stmt, sql, strlen(sql)) != 0) {
             cerr << "Error: mysql_stmt_prepare() failed to prepare `" << sql << "`:" << endl << mysql_stmt_error(pinsert_stmt) << endl;
             return EXIT_FAILURE;
     }
 
-    MYSQL_BIND bind_structs[7];
+    MYSQL_BIND bind_structs[9];
     memset(bind_structs, 0, sizeof(bind_structs));
 
     // parent_id
@@ -227,6 +234,7 @@ int store_shape(GP<GBitmap> bits, int dictionary_id, int parent, MYSQL *conn) {
     unsigned long length0;
     bind_structs[1].length = &length0;
     bind_structs[1].buffer_type = MYSQL_TYPE_BLOB;
+    bind_structs[1].is_unsigned = 1;
     bind_structs[1].is_null_value = 0;
 
     // page_id
@@ -234,21 +242,23 @@ int store_shape(GP<GBitmap> bits, int dictionary_id, int parent, MYSQL *conn) {
     bind_structs[2].is_null_value = 0;
     bind_structs[2].buffer = (void *) &dictionary_id;
 
-    // bounding box
- //   my_bool bb_null[4];
-    int bbox_values[4];
+    // bounding box, width, height
+
+    int values[6];
     if (bits) {
-    	bbox_values[0] = bbox.top;
-    	bbox_values[1] = bbox.left;
-    	bbox_values[2] = bbox.right;
-    	bbox_values[3] = bbox.bottom;
+    	values[0] = bbox.top;
+    	values[1] = bbox.left;
+    	values[2] = bbox.right;
+    	values[3] = bbox.bottom;
+    	values[4] = bits->columns(); // width
+    	values[5] = bits->rows(); // height
+
     };
 
-    for (int i = 0; i<4; i++) {
+    for (int i = 0; i<6; i++) {
     	bind_structs[i+3].buffer_type = MYSQL_TYPE_LONG;
-   // 	bind_structs[i+3].is_null = &bb_null[i];
     	bind_structs[i+3].is_null_value = 0;
-    	bind_structs[i+3].buffer = (void *) &bbox_values[i];
+    	bind_structs[i+3].buffer = (void *) &values[i];
     }
 
     if (mysql_stmt_bind_param(pinsert_stmt, bind_structs) != 0) {
@@ -257,9 +267,11 @@ int store_shape(GP<GBitmap> bits, int dictionary_id, int parent, MYSQL *conn) {
     }
 
     size_t bytes_to_read = bs->size();
+    size_t bytes_to_send = bytes_to_read;
 //    cout << "Bytes to read: " << bytes_to_read << endl;
     //TODO: create a ByteStream subclass that will be a safe alternative to this (get_data guaranteed to work on ByteStream::Memorys only.
     char* data = (char*)bs->get_data();
+
     /** char buf[1024];
     bool finished = false;
     while (finished) {
@@ -270,7 +282,7 @@ int store_shape(GP<GBitmap> bits, int dictionary_id, int parent, MYSQL *conn) {
         	   cout << "Bytes read: " << res << endl;
            }
      } **/
-    if (mysql_stmt_send_long_data(pinsert_stmt, 1, data, bytes_to_read) != 0) {
+    if (mysql_stmt_send_long_data(pinsert_stmt, 1, data, bytes_to_send) != 0) {
 		   cerr << "Error: mysql_stmt_send_long_data() failed." << endl;
 		   return EXIT_FAILURE;
 	}
@@ -493,12 +505,12 @@ int main(int argc, char **argv) {
 		const char *db_passwd;
 		char *filename;
 		int c;
-		bool create_db = false, inject_db = false;
+		bool create_db = false, inject_db = false, overwrite_db = false;
 		if (argc < 9) {
 				usage(argv);
 				return 1;
 		}
-		while ((c = getopt (argc, argv, "icd:u:h:p:")) != -1)
+		while ((c = getopt (argc, argv, "oicd:u:h:p:")) != -1)
 			switch (c)
 		    {
 				case 'd':
@@ -515,9 +527,15 @@ int main(int argc, char **argv) {
 					break;
 				case 'c':
 					create_db = true;
+					inject_db = true;
 					break;
 				case 'i':
 					inject_db = true;
+					break;
+				case 'o':
+					create_db = true;
+					inject_db = true;
+					overwrite_db = true;
 					break;
 				case '?':
 		    	 usage(argv);
@@ -547,7 +565,7 @@ int main(int argc, char **argv) {
 		    }
 
 		if (create_db) {
-			int retval = create_database(db_name, conn);
+			int retval = create_database(db_name, conn, overwrite_db);
 			if (retval != 0) {
 				std::cerr << "Database could not be created, cancelling execution." << endl;
 				return retval;
@@ -560,7 +578,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		if (inject_db || create_db) {
+		if (inject_db) {
 			if ( create_tables(conn) != 0) {
 				std::cerr << "Database schema could not be injected, cancelling further execution. " << endl;
 				return EXIT_FAILURE;

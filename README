@@ -9,6 +9,14 @@ into a MySQL database.
 The work is supported by the Ministry of Science and Higher Education's 
 grant no. N N519 384036 (cf. https://bitbucket.org/jsbien/ndt). 
 
+REQUIREMENTS
+============
+
+Exportshapes has all the requirements of DjVuLibre (see file: INSTALL) plus:
+
+	* Boost C++ library
+
+
 COMPILATION
 ===========
 
@@ -25,7 +33,9 @@ USAGE
 =====
 
 To use exportshapes, you need to provide it with a database name, host name, username, password and
-a filename to process. This will extract all shapes from the given document 
+a filename to process. This will extract all shapes from the given document.
+
+An user account used by exportshapes needs to have privileges to CREATE, DROP, INSERT and SELECT a given database.
 
 ./exportshapes [-i | -c | -o] [-t <page #>] [-f <page #>] [-a <document_address>] -u <username> -p <password> -h <host> -d <database> <file.djvu>
 

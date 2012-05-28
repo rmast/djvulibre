@@ -796,7 +796,7 @@ int main(int argc, char **argv) {
 		const char * initial_db_name = create_db ? NULL : db_name;
 
 		if (!mysql_real_connect(conn, db_host, db_user, db_passwd, initial_db_name, 0, NULL, CLIENT_COMPRESS)) {
-		        cerr << "Error: mysql_real_connect() failed to connect to `" << db_name << "`." << endl;
+		        cerr << "Error: mysql_real_connect() failed to connect to `" << db_name << "`: " << mysql_error(conn) << std::endl;
 		        return EXIT_FAILURE;
 		    }
 

@@ -1,12 +1,27 @@
+/***
+ * 
+ * Copyright © 2011 -- Grzegorz Chimosz.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * 
+ ***/
+
 #include <iostream>
 
 #include <DjVuDocument.h>
 #include <DjVuImage.h>
-#include <DjVmDir.h>
 #include <JB2Image.h>
-#include <Arrays.h>
-#include <GBitmap.h>
-#include <BSByteStream.h>
 
 using namespace DJVU;
 
@@ -28,7 +43,6 @@ int main(int argc, char **argv)
 
 		int found = 0;
 		const int pages = doc->get_pages_num();
-		//const int pages = 1;
 		for(int page = 0; page < pages; page++) {
 			std::cout << "testing page " << page << "... ";
 
@@ -49,34 +63,10 @@ int main(int argc, char **argv)
 					} else {
 						std::cout << "inherited dictionary not found";
 					}
-/*					std::cout << std::endl;
-					// test the shapes
-					int i = 0;
-					int j = 5;
-
-					while (i<j && i<jimg->get_shape_count()) {
-						JB2Shape shape = jimg->get_shape(i);
-						GP<GBitmap> bits = shape.bits;
-						if (!bits)
-							continue;
-						GP<ByteStream> bs = ByteStream::create();
-						bits->save_pbm(*bs);
-						//TArray<char> array = bs->get_data();
-					    const unsigned char* data = reinterpret_cast<const unsigned char*>((char*) bs->get_data());
-					    for (int k=0; k<(int) bs->size();k++) {
-					    	std::cout << (int) data[k] << " ";
-					    	if ((k+1)%10 == 0) {
-					    		std::cout << std::endl;
-					    	}
-					    }
-
-					    std::cout << std::endl;
-						i++;
-					}*/
 				}
 			}
-			std::cout << std::endl;
 
+			std::cout << std::endl;
 		}
 
 		std::cout <<

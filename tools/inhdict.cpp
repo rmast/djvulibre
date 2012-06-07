@@ -18,6 +18,7 @@
  ***/
 
 #include <iostream>
+#include <string>
 
 #include <DjVuDocument.h>
 #include <DjVuImage.h>
@@ -74,6 +75,24 @@ int main(int argc, char **argv)
 						std::cout << "inherited dictionary not found ; page only = " 
 							  << jimg->get_shape_count();
 					}
+				}
+				std::cout << std::endl;
+				GP<DjVuFile> djvu_file = dimg->get_djvu_file();
+				if (!djvu_file) {
+					std::cout << "Failed to get identification data for page " << page;
+				} else {
+					if (jimg->get_inherited_dict()) {
+						GPList<DjVuFile> included_files = djvu_file->get_included_files();
+						if (included_files.size() > 0) {
+							for (GPosition i = included_files ; i; ++i) {
+								GP<DjVuFile> included_file = included_files[i];
+								std::string dict_name = (std::string) included_file->get_url().fname();
+								if (included_file->fgjd) { // this is an inherited dictionary
+									std::cout << "Inherited dictionary: " << dict_name;
+								}
+							}
+						}
+					}		
 				}
 			}
 

@@ -1,6 +1,6 @@
 /***
  * 
- * Copyright © 2011 -- Grzegorz Chimosz.
+ * Copyright © 2011 -- Grzegorz Chimosz, 2012 -- Piotr Sikora.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,9 +28,10 @@ using namespace DJVU;
 int main(int argc, char **argv)
 {
 	if (argc != 2) {
-		std::cout << "usage: " << argv[0] << " <filename>" << std::endl;
+		std::cout << "usage: inhdict <filename>" << std::endl;
 		return -1;
 	}
+	int total_shapes = 0, inh_dict_shapes = 0, last_dict = -1;
 
 	G_TRY
 	{
@@ -44,7 +45,7 @@ int main(int argc, char **argv)
 		int found = 0;
 		const int pages = doc->get_pages_num();
 		for(int page = 0; page < pages; page++) {
-			std::cout << "testing page " << page << "... ";
+			std::cout << "Page " << page << " shape count: ";
 
 			GP<DjVuImage> dimg = doc->get_page(page);
 			if (!dimg) {
@@ -54,27 +55,39 @@ int main(int argc, char **argv)
 				if (!jimg) {
 					std::cout << "get_fgjb failed";
 				} else {
+					std::cout << "total = " << jimg->get_shape_count() << " ; inherited = ";
+					total_shapes += jimg->get_shape_count();
 					if (jimg->get_inherited_dict()) {
 						std::cout <<
-							"found inherited dictionary, inherited shapecount = " <<
-							jimg->get_inherited_shape_count();
-
+							jimg->get_inherited_shape_count()
+							<< " ; page only = "
+							<< jimg->get_shape_count() - jimg->get_inherited_shape_count() ;
+						if (jimg->get_inherited_shape_count() != last_dict) {
+							last_dict = jimg->get_inherited_shape_count();
+							inh_dict_shapes += last_dict;
+							
+						} else {
+							total_shapes -= last_dict;
+						}
 						found++;
 					} else {
-						std::cout << "inherited dictionary not found";
+						std::cout << "inherited dictionary not found ; page only = " 
+							  << jimg->get_shape_count();
 					}
 				}
 			}
 
 			std::cout << std::endl;
 		}
-
 		std::cout <<
 			std::endl <<
-			"Summary: " <<
-			found <<
-			" pages with ihherited shapes dictionary found" <<
+			"Summary: document contains" << std::endl <<
+			total_shapes << " total shapes" << std::endl <<
+			inh_dict_shapes << " shapes in inherited dictionaries" << std::endl <<
+			total_shapes - inh_dict_shapes << " shapes in page-only dictionaries "<< 
+			
 			std::endl;
+		
 	} G_CATCH(ex) {
 		ex.perror();
 		return 1;

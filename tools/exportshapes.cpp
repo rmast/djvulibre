@@ -66,6 +66,24 @@ int create_database(const char * dbname, MYSQL *conn, const bool overwrite) {
 	return 0;
 }
 
+/***
+ *
+ * Create a table to link inherited dictionaries to pages in a document.
+ * Outside create_tables method for backwards compatibility.
+ *
+ ***/
+int create_pages_table(MYSQL *conn) {
+	int retval;
+	retval = mysql_query(conn,
+		"create table if not exists pages (document_id INT not null, inh_dict_id INT not null, page_number INT not null);"
+			);
+	if (retval) {
+		std::cerr << "Error during table creation:  " << mysql_errno(conn) << ": " <<  mysql_error(conn) << std::endl;
+	}
+	return retval;
+}
+
+
 int create_tables(MYSQL *conn) { // create tables
 	if (mysql_query(conn,
 		"create table shapes (id INT not null auto_increment primary key, original_id INT not null, parent_id INT not null, bits LONGBLOB, width INT, height INT, dictionary_id INT not null, bbox_top INT, bbox_left INT, bbox_right INT, bbox_bottom INT)"
@@ -94,8 +112,9 @@ int create_tables(MYSQL *conn) { // create tables
 
 	// -- page number for page-specific dictionaries, -1 for shared dictionaries
 
-	return 0;
+	return create_pages_table(conn);
 }
+
 
 BoundingBox compute_bounding_box(const GBitmap &bm)
 {
@@ -467,6 +486,50 @@ int store_document (char * document, char * document_address, MYSQL *conn) {
     return mysql_insert_id(conn);
 }
 
+int store_page_link (int document_id, int inh_dict_id, int page_number, MYSQL *conn) {
+    MYSQL_STMT *pinsert_stmt = mysql_stmt_init(conn);
+    BOOST_SCOPE_EXIT( (pinsert_stmt) ) {
+        mysql_stmt_close(pinsert_stmt);
+    } BOOST_SCOPE_EXIT_END
+
+    const char sql[] = "INSERT INTO pages(document_id, inh_dict_id, page_number) VALUES (?,?,?)";
+    if (mysql_stmt_prepare(pinsert_stmt, sql, strlen(sql)) != 0) {
+            cerr << "Error: mysql_stmt_prepare() failed to prepare `" << sql << "`:" << endl << mysql_stmt_error(pinsert_stmt) << endl;
+            return EXIT_FAILURE;
+    }
+
+    MYSQL_BIND bind_structs[3];
+    memset(bind_structs, 0, sizeof(bind_structs));
+
+    bind_structs[0].buffer_type = MYSQL_TYPE_LONG;
+    //bind_structs[0].is_unsigned = 1;
+    bind_structs[0].is_null_value = 0;
+    bind_structs[0].buffer = (void *) &document_id;
+
+    bind_structs[1].buffer_type = MYSQL_TYPE_LONG;
+    //bind_structs[1].is_unsigned = 1;
+    bind_structs[1].is_null_value = 0;
+    bind_structs[1].buffer = (void *) &inh_dict_id;
+
+    bind_structs[2].buffer_type = MYSQL_TYPE_LONG;
+    //bind_structs[2].is_unsigned = 1;
+    bind_structs[2].is_null_value = 0;
+    bind_structs[2].buffer = (void *) &page_number;
+
+    if (mysql_stmt_bind_param(pinsert_stmt, bind_structs) != 0) {
+        cerr << "Error: mysql_stmt_bind_param() failed: " << endl << sql << endl;
+        return EXIT_FAILURE;
+    }
+
+    if (mysql_stmt_execute(pinsert_stmt) != 0) {
+        cerr << "Error: mysql_stmt_execute() failed: " << endl << sql << endl;
+        return EXIT_FAILURE;
+    }
+
+    return 0;
+}
+
+
 int check_for_dictionary_in_database(std::string dictionary_name, MYSQL* conn) {
 	if (test_run)
 		std::cout << "Checking for dictionary: " << dictionary_name << std::endl;
@@ -563,7 +626,7 @@ void fetch_inherited_dictionary(int inh_dict_id, std::map<int,int> &inherited_sh
 }
 
 
-int process_document(int page_from, int page_to, GP<DjVuDocument> doc, int doc_id, MYSQL* conn) {
+int process_document(int page_from, int page_to, GP<DjVuDocument> doc, int doc_id, bool links_only, MYSQL* conn) {
 	const int pages = doc->get_pages_num();
 	int page_start, page_limit;
 	page_start = (page_from < 1) ? 0 : page_from - 1;
@@ -589,7 +652,7 @@ int process_document(int page_from, int page_to, GP<DjVuDocument> doc, int doc_i
 
 	std::string current_inherited_dictionary = "";
 	std::map<int, int> inherited_shape_translation;
-
+	int inh_dict_id;
 	for(int page_number = page_start; page_number < page_limit; page_number++) {
 		GP<DjVuImage> djvu_page = doc->get_page(page_number);
 		if (!djvu_page) {
@@ -606,7 +669,7 @@ int process_document(int page_from, int page_to, GP<DjVuDocument> doc, int doc_i
 						jimg->get_inherited_shape_count() << " of them inherited." << std::endl;
 
 				GP<JB2Dict> inherited_dictionary = jimg->get_inherited_dict();
-				int inh_dict_id = -1;
+				
 				int inh_sh_count = 0;
 
 				if (inherited_dictionary) {
@@ -637,10 +700,16 @@ int process_document(int page_from, int page_to, GP<DjVuDocument> doc, int doc_i
 									if (test_run)
 										std::cout << "Dictionary check result: " << inh_dict_id << std::endl;
 									if (inh_dict_id >= 0) {
-										fetch_inherited_dictionary(inh_dict_id, inherited_shape_translation, conn); // fills the map with shape id translation from the database
-										if (test_run)
-											std::cout << "Fetched inherited dictionary." << std::endl;
+										if  (!links_only) {
+											fetch_inherited_dictionary(inh_dict_id, inherited_shape_translation, conn); // fills the map with shape id translation from the database
+											if (test_run)
+												std::cout << "Fetched inherited dictionary." << std::endl;
+										}
 									} else {// a new inherited dictionary
+										if (links_only) {
+												std::cout << "File can't be processed with option '-l' ('links only') - it contains inherited dictionaries that aren't in the database." << endl;
+												return EXIT_FAILURE;
+										}
 										std::cout << "Found a new inherited dictionary:" << dict_name << " containing "  << included_file->fgjd->get_shape_count() << " shapes." << endl;
 										// store the inherited dictionary
 										inh_dict_id = store_dictionary(doc_id, -1, dict_name, conn);
@@ -658,56 +727,61 @@ int process_document(int page_from, int page_to, GP<DjVuDocument> doc, int doc_i
 											inherited_shape_translation.insert(IntPair(i,shape_id));
 										}
 									}
-									//}
+									
+									
+									
 								}
+								store_page_link(doc_id, inh_dict_id, page_number, conn);
 							}
 						}
 					}
 				}
-				//compute page dictionary parameters
-				std::map<int, int> page_shape_translation;
+				if (!links_only) {
+					//compute page dictionary parameters
+					std::map<int, int> page_shape_translation;
 
-				string page_name = (string) djvu_file->get_url().fname();
-				int sh_count = jimg->get_shape_count();
-				int blit_count = jimg->get_blit_count();
-				// store page dictionary
-				int page_dict_id = store_dictionary(doc_id,page_number,page_name,conn);
+					string page_name = (string) djvu_file->get_url().fname();
+					int sh_count = jimg->get_shape_count();
+					int blit_count = jimg->get_blit_count();
+					// store page dictionary
+					int page_dict_id = store_dictionary(doc_id,page_number,page_name,conn);
 
-				if (test_run)
-					std::cout << "Processing page shapes. " << std::endl;
+					if (test_run)
+						std::cout << "Processing page shapes. " << std::endl;
 
-				// store shapes
-				for (int i=inh_sh_count; i < sh_count;i++) {
-					JB2Shape shape = jimg->get_shape(i);
-					int parent;
-					if (shape.parent < 0) {
-						parent = shape.parent;
-					} else if (shape.parent < inh_sh_count) { // inherited parent
-						parent = test_run ? 0 : inherited_shape_translation[shape.parent];
-					} else { // other parent
-						parent = page_shape_translation[shape.parent];
+					// store shapes
+					for (int i=inh_sh_count; i < sh_count;i++) {
+						JB2Shape shape = jimg->get_shape(i);
+						int parent;
+						if (shape.parent < 0) {
+							parent = shape.parent;
+						} else if (shape.parent < inh_sh_count) { // inherited parent
+							parent = test_run ? 0 : inherited_shape_translation[shape.parent];
+						} else { // other parent
+							parent = page_shape_translation[shape.parent];
+						}
+						int shape_id = store_shape(i, shape.bits, page_dict_id, parent, conn);
+						page_shape_translation.insert(IntPair(i,shape_id));
 					}
-					int shape_id = store_shape(i, shape.bits, page_dict_id, parent, conn);
-					page_shape_translation.insert(IntPair(i,shape_id));
-				}
 
-				if (test_run)
-					std::cout << "Processing blits. " << std::endl;
-				// store blits
-			    for (int i = 0; i < blit_count; i++) {
-			    	JB2Blit *blit = jimg->get_blit(i);
-			    	if (blit) {
-			    		int shape_id = -1;
-			    		if ((int) blit->shapeno < inh_sh_count) {
-			    			// shape from inherited dictionary
-			    			shape_id = inherited_shape_translation[blit->shapeno];
-			    		} else {
-			    			// shape from page dictionary
-			    			shape_id = page_shape_translation[blit->shapeno];
-			    		}
-			    		store_blit(shape_id, doc_id, page_number, blit->left, blit->bottom, conn);
-			    	}
-			    }
+					if (test_run)
+						std::cout << "Processing blits. " << std::endl;
+					// store blits
+					for (int i = 0; i < blit_count; i++) {
+						JB2Blit *blit = jimg->get_blit(i);
+						if (blit) {
+							int shape_id = -1;
+							if ((int) blit->shapeno < inh_sh_count) {
+								// shape from inherited dictionary
+								shape_id = inherited_shape_translation[blit->shapeno];
+							} else {
+								// shape from page dictionary
+								shape_id = page_shape_translation[blit->shapeno];
+							}
+							store_blit(shape_id, doc_id, page_number, blit->left, blit->bottom, conn);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -734,10 +808,10 @@ int main(int argc, char **argv) {
 		const char *db_passwd;
 		char *filename, *doc_address;
 		int c;
-		bool create_db = false, inject_db = false, overwrite_db = false, given_address = false;
+		bool create_db = false, inject_db = false, overwrite_db = false, given_address = false, links_only = false;
 		int required_arguments = 0;
 		int page_from = 1 , page_to = -1;
-		while ((c = getopt (argc, argv, "Toicd:u:h:p:f:t:a:")) != -1)
+		while ((c = getopt (argc, argv, "Tolicd:u:h:p:f:t:a:")) != -1)
 			switch (c)
 		    {
 				case 'T':
@@ -780,6 +854,9 @@ int main(int argc, char **argv) {
 				case 'a':
 					doc_address = optarg;
 					given_address = true;
+					break;
+				case 'l':
+					links_only = true;
 					break;
 				case '?':
 		    	 usage(argv);
@@ -835,6 +912,9 @@ int main(int argc, char **argv) {
 				return EXIT_FAILURE;
 			}
 		}
+		
+		// create table 'pages' if it doesn't exist. For backwards compatibility.
+		create_pages_table(conn);
 
 		const GURL::Filename::UTF8 url(filename);
 
@@ -850,7 +930,7 @@ int main(int argc, char **argv) {
 		if (doc_id == -1) {
 			doc_id = store_document(filename, doc_address, conn);
 		}
-		return process_document(page_from, page_to, doc, doc_id, conn);
+		return process_document(page_from, page_to, doc, doc_id, links_only, conn);
 	}
 	catch (exception& ex) {
 		std::cout << "An exception occurred: " << ex.what() << "\n";

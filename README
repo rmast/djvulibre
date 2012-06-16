@@ -37,7 +37,7 @@ a filename to process. This will extract all shapes from the given document.
 
 An user account used by exportshapes needs to have privileges to CREATE, DROP, INSERT and SELECT a given database.
 
-./exportshapes [-i | -c | -o] [-t <page #>] [-f <page #>] [-a <document_address>] -u <username> -p <password> -h <host> -d <database> <file.djvu>
+./exportshapes [-i | -c | -o | -a | -l] [-f <page #>] [-t <page #>] [-a <document_address>] -u <username> -p <password> -h <host> -d <database> <file.djvu>
 
 Options -u, -p, -h, -d supply required parameters.
 
@@ -53,6 +53,10 @@ Option -t: its argument specifies a limit to the number of pages processed by th
 
 Option -a: its argument specifies a remote address associated with the document 
 	   (to allow remote users of the database to open the document via e.g. http).
+
+Option -l: only process data linking document pages with inherited dictionaries. Previous versions 
+		   of this tool didn't do so and running exportshapes with this tool fixes this shortcoming
+		   while being backwards compatible with an already filled database.
 
 E.g. "exportshapes -f 5 -t 10 [...]" would export shapes from pages 5,6,7,8,9 and 10.
 
@@ -89,6 +93,11 @@ id INT not null auto_increment primary key,
 dictionary_name varchar(60) not null,
 page_number INT not null, -- which page this dictionary belongs to, inherited dictionaries have -1 in this field
 document_id INT not null -- references table of documents
+
+TABLE pages: -- linking inherited dictionaries with pages that use them
+document_id INT not null, -- which documents this entry refers to
+inh_dict_id INT not null, -- which inherited dictionary this entry refers to
+page_number INT not null -- which page uses that dictionary
 
 
 

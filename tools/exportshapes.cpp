@@ -59,6 +59,7 @@ int create_database(const char * dbname, MYSQL *conn, const bool overwrite) {
 	}
 	string query = "create database ";
 	query.append(dbname);
+	query.append(" CHARACTER SET utf8 COLLATE utf8_unicode_ci;");
 	if (mysql_query(conn, query.c_str())) {
 		std::cerr << "Error " << mysql_errno(conn) << ": " <<  mysql_error(conn) << std::endl;
 		return 1;
@@ -792,12 +793,13 @@ int process_document(int page_from, int page_to, GP<DjVuDocument> doc, int doc_i
 
 
 void usage(char **argv) {
-	std::cout << "Usage: " << argv[0] << "[-c | -i | -o] [-t <page #>] [-f <page #>] -h <host> -d <database> -u <user> -p <password> <filename>" << std::endl;
+	std::cout << "Usage: " << argv[0] << "[-c | -i | -o | -l] [-t <page #>] [-f <page #>] -h <host> -d <database> -u <user> -p <password> <filename>" << std::endl;
 	std::cout << "Option -i creates tables filled by the program in the database. " << std::endl;
 	std::cout << "Option -c creates the database (with required tables)." << std::endl;
 	std::cout << "Option -o overwrites the database (if it already exists). If not, works just like -c." << std::endl;
 	std::cout << "Option -f: its argument specifies a page number from which the processing should start." << std::endl;
 	std::cout << "Option -t: its argument specifies a limit to the number of pages processed by the program." << std::endl;
+	std::cout << "Option -l: adds a table linking pages to inherited dictionaries. Present for backwards compatibility." << std::endl;
 }
 
 int main(int argc, char **argv) {
@@ -857,6 +859,9 @@ int main(int argc, char **argv) {
 					break;
 				case 'l':
 					links_only = true;
+					if (inject_db)
+						usage(argv);
+						return 1;
 					break;
 				case '?':
 		    	 usage(argv);

@@ -6,6 +6,11 @@ INFO
 exportshapes is a tool for extracting shape libraries from DjVu documents
 into a MySQL database. 
 
+It is made available by the Formal Linguistics Department
+of the University of Warsaw. It has been implemented by Piotr Sikora
+to facilitate the development of tools for manipulation of DjVu shape
+libraries (see https://bitbucket.org/piotr_sikora/moredjvushapetools).
+
 The work is supported by the Ministry of Science and Higher Education's 
 grant no. N N519 384036 (cf. https://bitbucket.org/jsbien/ndt). 
 

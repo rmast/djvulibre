@@ -27,7 +27,7 @@ USAGE
 To use exportshapes, you need to provide it with a database name, host name, username, password and
 a filename to process. This will extract all shapes from the given document 
 
-./exportshapes [-i | -o | -c] -u <username> -p <password> -h <host> -d <database> <file.djvu>
+./exportshapes [-i | -c | -o] [-t <page #>] [-f <page #>] [-a <document_address>] -u <username> -p <password> -h <host> -d <database> <file.djvu>
 
 Options -u, -p, -h, -d supply required parameters.
 
@@ -37,11 +37,21 @@ Option -c creates a database of the given name and then injects required tables 
 
 Option -o does the same as -c, but also drops the database first, if it exists already. Good for testing.
 
+Option -f: its argument specifies a page number from which the processing should start.
+
+Option -t: its argument specifies a limit to the number of pages processed by the program.
+
+Option -a: its argument specifies a remote address associated with the document 
+	   (to allow remote users of the database to open the document via e.g. http).
+
+E.g. "exportshapes -f 5 -t 10 [...]" would export shapes from pages 5,6,7,8,9 and 10.
+
 DATABASE STRUCTURE
 ==================
 
 TABLE shapes:
 id INT not null auto_increment primary key,
+original_id INT not null, -- index in the page dictionary the shape comes from
 parent_id INT not null, -- references other shapes
 bits LONGBLOB,
 width INT,
@@ -60,7 +70,8 @@ b_bottom SMALLINT UNSIGNED not null
 
 TABLE documents: -- documents stored in the database
 id INT not null auto_increment primary key,
-document varchar(60) not null
+document varchar(60) not null,
+document address(100) not null
 
 
 TABLE dictionaries: -- dictionaries stored in the database

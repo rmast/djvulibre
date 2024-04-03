@@ -2,7 +2,11 @@
 
 #include <DjVuDocument.h>
 #include <DjVuImage.h>
+#include <DjVmDir.h>
 #include <JB2Image.h>
+#include <Arrays.h>
+#include <GBitmap.h>
+#include <BSByteStream.h>
 
 using namespace DJVU;
 
@@ -24,6 +28,7 @@ int main(int argc, char **argv)
 
 		int found = 0;
 		const int pages = doc->get_pages_num();
+		//const int pages = 1;
 		for(int page = 0; page < pages; page++) {
 			std::cout << "testing page " << page << "... ";
 
@@ -44,10 +49,34 @@ int main(int argc, char **argv)
 					} else {
 						std::cout << "inherited dictionary not found";
 					}
+/*					std::cout << std::endl;
+					// test the shapes
+					int i = 0;
+					int j = 5;
+
+					while (i<j && i<jimg->get_shape_count()) {
+						JB2Shape shape = jimg->get_shape(i);
+						GP<GBitmap> bits = shape.bits;
+						if (!bits)
+							continue;
+						GP<ByteStream> bs = ByteStream::create();
+						bits->save_pbm(*bs);
+						//TArray<char> array = bs->get_data();
+					    const unsigned char* data = reinterpret_cast<const unsigned char*>((char*) bs->get_data());
+					    for (int k=0; k<(int) bs->size();k++) {
+					    	std::cout << (int) data[k] << " ";
+					    	if ((k+1)%10 == 0) {
+					    		std::cout << std::endl;
+					    	}
+					    }
+
+					    std::cout << std::endl;
+						i++;
+					}*/
 				}
 			}
-
 			std::cout << std::endl;
+
 		}
 
 		std::cout <<

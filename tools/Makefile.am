@@ -1,11 +1,12 @@
 bin_PROGRAMS = bzz c44 cjb2 cpaldjvu csepdjvu ddjvu djvm djvmcvt	\
- djvudump djvups djvuextract djvumake djvused djvutxt djvuserve inhdict
+ djvudump djvups djvuextract djvumake djvused djvutxt djvuserve inhdict \
+ exportshapes
 
 jb2cmp_SOURCES = jb2cmp/classify.cpp jb2cmp/cuts.cpp		\
  jb2cmp/frames.cpp jb2cmp/patterns.cpp jb2cmp/classify.h	\
  jb2cmp/mdjvucfg.h jb2cmp/minidjvu.h jb2cmp/patterns.h
 
-AM_CPPFLAGS = -I$(top_srcdir)/libdjvu
+AM_CPPFLAGS = -I$(top_srcdir)/libdjvu -I/usr/include/mysql $(BOOST_CPPFLAGS)
 AM_CXXFLAGS = $(PTHREAD_CFLAGS)
 
 DJLIB = $(top_builddir)/libdjvu/libdjvulibre.la
@@ -61,6 +62,11 @@ djvuserve_LDADD = $(DJLIB) $(PTHREAD_LIBS)
 
 inhdict_SOURCES = inhdict.cpp common.h
 inhdict_LDADD = $(DJLIB) $(PTHREAD_LIBS)
+
+exportshapes_SOURCES = exportshapes.cpp common.h
+exportshapes_LDADD = $(DJLIB) $(PTHREAD_LIBS) $(MYSQL_LIBS)             \
+ $(BOOST_SYSTEM_LIBS) $(BOOST_FILESYSTEM_LIBS) $(BOOST_THREAD_LIBS)     \
+ $(BOOST_SCOPE_EXIT_LIBS) -L/usr/lib/mysql -lmysqlclient
 
 djvutxt_SOURCES = djvutxt.cpp
 djvutxt_CPPFLAGS = -I$(top_srcdir) $(AM_CPPFLAGS)

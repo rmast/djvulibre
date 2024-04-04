@@ -22,6 +22,7 @@
 # Initialization
 # ----------------------------------------
 
+
 m4_define([v_maj], [3])
 m4_define([v_min], [5])
 m4_define([v_mic], [28])
@@ -149,6 +150,33 @@ AC_CXX_GCCTLS
 # ----------------------------------------
 
 AC_CHECK_LIB(m,sqrt)
+AC_CHECK_LIB([mysqlclient], [mysql_init],
+    [have_mysql=yes],
+    [have_mysql=no])
+
+if test "x$have_mysql" = "xyes"; then
+    AC_DEFINE([HAVE_MYSQL], [1], [Define if you have MySQL support])
+    MYSQL_LIBS="-L/usr/lib/mysql -lmysqlclient"
+else
+    AC_MSG_ERROR([MySQL library not found])
+fi
+
+# Check for Boost library
+AX_BOOST_BASE([1.71.0],
+[have_boost=yes],
+[AC_MSG_ERROR([libfoo needs Boost, but it was not found in your system])]
+)
+AC_MSG_NOTICE(["have_boost value"])
+AC_MSG_NOTICE([$have_boost])
+
+# Check for Boost.ScopeExit
+AC_CHECK_LIB([boost_scope_exit], [boost/scope_exit.hpp],
+    [have_boost_scope_exit=yes],
+    [have_boost_scope_exit=no])
+
+if test "x$have_boost_scope_exit" = "xyes"; then
+    AC_DEFINE([HAVE_BOOST_SCOPE_EXIT], [1], [Define if you have Boost.ScopeExit])
+fi
 
 # AC_CHECK_LIB(iconv,libiconv_open) # not really used.
 
@@ -222,7 +250,6 @@ AC_MSG_RESULT([${have_jpeg}])
 AC_PATH_TIFF([have_tiff="yes"], [have_tiff="no"])
 AC_MSG_CHECKING([for libtiff])
 AC_MSG_RESULT([${have_tiff}])
-
 
 # ----------------------------------------
 # What to compile

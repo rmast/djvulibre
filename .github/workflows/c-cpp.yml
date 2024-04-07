@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: apt
+      run: sudo apt-get install ttf-mscorefonts-installer
     - uses: actions/checkout@v4
     - name: autogen.sh
       run: ./autogen.sh

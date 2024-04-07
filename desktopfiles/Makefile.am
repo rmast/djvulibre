@@ -40,7 +40,7 @@ endif
 
 if HAVE_CONVERSION_CONVERT
 convert_icons_process = \
-s=`echo $@ | sed -e 's/[a-z]*\([0-9]*\).*/\1/'`; \
+s=`echo $@ | sed -e \'s/[a-z]*\([0-9]*\).*/\1/\'`; \
 ${CONVERT} \
 -geometry $${s}x$${s} \
 -depth 8 \

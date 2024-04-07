@@ -64,7 +64,8 @@ int process_document(int page_from, int page_to, GP<DjVuDocument> doc) {
 	}
 
 
-	std::map<string, int> inherited_dictionary_translation;
+	std::cout << "sjbz or djbz,page number,blit number,blit shapeno,shape bits columns,rows,rowsize,blit bottom, left" << endl;
+
 
 	for(int page_number = page_start; page_number < page_limit; page_number++) {
 
@@ -84,58 +85,43 @@ int process_document(int page_from, int page_to, GP<DjVuDocument> doc) {
 				std::cout << "Processing page " << page_number << " containing " << jimg->get_shape_count() << " shapes, " <<
 						jimg->get_inherited_shape_count() << " of them inherited." << std::endl;
 				GP<JB2Dict> inherited_dictionary = jimg->get_inherited_dict();
-				int inh_dict_id = -1;
-				int inh_sh_count = 0;
+				// int inh_dict_id = -1;
+				int inh_sh_count = jimg->get_inherited_shape_count();
+				// string dict_name = "";
 
-				if (inherited_dictionary) {
-					if (test_run)
-						std::cout << "Page has inherited dictionary." << std::endl;
-					// list included files
-					GPList<DjVuFile> included_files = djvu_file->get_included_files();
-					if (included_files.size() > 0) {
-						// find an included file corresponding to the inherited dictionary
-						for (GPosition i = included_files ; i; ++i) {
-							GP<DjVuFile> included_file = included_files[i];
-							//get the dictionary name
-
-							string dict_name = (string) included_file->get_url().fname();
-							// check if it is a previously known inherited dictionary
-							map<string,int>::iterator contains = inherited_dictionary_translation.find(dict_name);
-							if (contains!=inherited_dictionary_translation.end()) {
-								inh_dict_id = contains->second;
-							} else {
-								std::cout << "Found a new included file: " << dict_name << endl;
-								if (included_file->fgjd) { // this is an inherited dictionary
-									std::cout << " It's an inherited dictionary containing " << dict_name << " containing "  << included_file->fgjd->get_shape_count() << " shapes." << endl;
-									// remember the dictionary
-									inherited_dictionary_translation.insert(std::pair<string,int>(dict_name, inh_dict_id));
-									inh_sh_count = jimg->get_inherited_shape_count();
-									std::cout << "inherited shapes" << endl;
-									for (int i = 0; i < inh_sh_count; i++) {
-										JB2Shape shape = jimg->get_shape(i);
-										std::cout << shape.bits->columns() << " " << shape.bits->rows() << " "  << shape.bits->rowsize() << endl;
-									}
-								}
-							}
-						}
-					}
-				}
+				// if (inherited_dictionary) {
+				// 	if (test_run)
+				// 		std::cout << "Page has inherited dictionary." << std::endl;
+				// 	// list included files
+				// 	GPList<DjVuFile> included_files = djvu_file->get_included_files();
+				// 	if (included_files.size() > 0) {
+				// 		// find an included file corresponding to the inherited dictionary
+				// 		for (GPosition i = included_files ; i; ++i) {
+				// 			GP<DjVuFile> included_file = included_files[i];
+				// 			if (included_file->fgjd) { // this is an inherited dictionary
+				// 				std::cout << " It's an inherited dictionary containing " << dict_name << " containing "  << included_file->fgjd->get_shape_count() << " shapes." << endl;
+				// 				dict_name = (string) included_file->get_url().fname();
+				// 				break;
+				// 			}
+				// 		}
+				// 	}
+				// }
 				//compute page dictionary parameters
-				std::map<int, int> page_shape_translation;
+				// std::map<int, int> page_shape_translation;
 
 				string page_name = (string) djvu_file->get_url().fname();
 				int sh_count = jimg->get_shape_count();
 				int blit_count = jimg->get_blit_count();
 				// store page dictionary
 
-				if (test_run)
-					std::cout << "Processing page shapes. " << std::endl;
-				std::cout << "normal shapes" << endl;
-				// store shapes
-				for (int i=inh_sh_count; i < sh_count;i++) {
-					JB2Shape shape = jimg->get_shape(i);
-					std::cout << shape.bits->columns() << " "  << shape.bits->rows() << " "  << shape.bits->rowsize() << endl;
-				}
+				// if (test_run)
+				// 	std::cout << "Processing page shapes. " << std::endl;
+				// std::cout << "normal shapes" << endl;
+				// // store shapes
+				// for (int i=inh_sh_count; i < sh_count;i++) {
+				// 	JB2Shape shape = jimg->get_shape(i);
+				// 	std::cout << page_number << " " << shape.bits->columns() << " "  << shape.bits->rows() << " "  << shape.bits->rowsize() << endl;
+				// }
 
 				if (test_run)
 					std::cout << "Processing blits. " << std::endl;
@@ -143,9 +129,8 @@ int process_document(int page_from, int page_to, GP<DjVuDocument> doc) {
 				for (int i = 0; i < blit_count; i++) {
 					JB2Blit *blit = jimg->get_blit(i);
 					if (blit) {
-						std::cout << blit->bottom << " "  << blit->left << " "  << blit->shapeno << endl;
-						if ((int) blit->shapeno < inh_sh_count) {
-						}
+						JB2Shape shape = jimg->get_shape(blit->shapeno);
+						std::cout << ((blit->shapeno < inh_sh_count)?"s":"d") << "," << page_number << "," << i << "," << blit->shapeno  << "," << shape.bits->columns() << ","  << shape.bits->rows() << ","  << shape.bits->rowsize() << "," << blit->bottom << ","  << blit->left << endl;
 					}
 				}
 			}

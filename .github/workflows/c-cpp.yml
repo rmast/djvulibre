@@ -14,6 +14,10 @@ jobs:
     steps:
     - name: apt
       run: sudo apt-get install ttf-mscorefonts-installer
+    - name: Install dependencies
+      run: |
+        sudo apt-get install -y -qq libvips ghostscript imagemagick
+        yarn install --frozen-lockfile      
     - uses: actions/checkout@v4
     - name: autogen.sh
       run: ./autogen.sh

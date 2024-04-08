@@ -9,18 +9,9 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
-#    - name: Change ImageMagick policy to allow pdf->png conversion.
-#      run: |
-#        sudo sed -i 's/^.*policy.*coder.*none.*PDF.*//' /etc/ImageMagick-6/policy.xml
-    #- name: apt
-    #  run: sudo apt-get install ttf-mscorefonts-installer
-    #- name: Install dependencies
-    #  run: |
-    #    sudo apt-get install -y -qq libvips ghostscript imagemagick
-    #    yarn install --frozen-lockfile   
     - name: 'install deps'
       run: "sudo apt install -y libfreetype6-dev gsfonts libmagickwand-dev imagemagick"
     - uses: actions/checkout@v4

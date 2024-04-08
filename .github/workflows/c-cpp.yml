@@ -19,6 +19,9 @@ jobs:
         sudo apt-get install -y -qq libvips ghostscript imagemagick
         yarn install --frozen-lockfile      
     - uses: actions/checkout@v4
+    - name: Copy custom policy.xml
+      run: cp .github/workflows/policy.xml /etc/ImageMagick-6/policy.xml
+   
     - name: autogen.sh
       run: ./autogen.sh
     - name: configure

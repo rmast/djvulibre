@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policies SYSTEM "http://www.imagemagick.org/script/xml-policy.dtd">
+<policies>
+  <policymap>
+    <!-- Allow PDF processing -->
+    <policy domain="coder" rights="read|write" pattern="PDF" />
+    <!-- Set "fixed" font as default -->
+    <policy domain="coder" rights="none" pattern="LABEL" />
+    <!-- Other policies can be defined here -->
+  </policymap>
+</policies>

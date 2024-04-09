@@ -15,4 +15,17 @@ jobs:
     - name: 'install deps'
       run: "sudo apt install -y libfreetype6-dev gsfonts libmagickwand-dev imagemagick"
     - name: 'install deps2'
-      run: which convert
+      run: "which convert"
+    - uses: actions/checkout@v4
+    - name: 'install deps2'
+      run: "mv /usr/bin/convert /usr/bin/converto"
+    
+    - name: autogen.sh
+      run: ./autogen.sh
+    - name: configure
+      run: ./configure
+    - name: make
+      run: make
+    - name: 'install deps2'
+      run: "which convert"
+    

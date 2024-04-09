@@ -18,7 +18,7 @@ jobs:
       run: "which convert"
     - uses: actions/checkout@v4
     - name: 'install deps2'
-      run: "mv /usr/bin/convert /usr/bin/converto"
+      run: "sudo mv /usr/bin/convert /usr/bin/converto"
     
     - name: autogen.sh
       run: ./autogen.sh

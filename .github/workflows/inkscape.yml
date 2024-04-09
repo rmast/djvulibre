@@ -17,8 +17,10 @@ jobs:
     - name: 'install deps2'
       run: "which convert"
     - uses: actions/checkout@v4
-    - name: 'install deps2'
+    - name: 'install deps3'
       run: "sudo mv /usr/bin/convert /usr/bin/converto"
+    - name: 'install deps4'
+      run: "sudo apt install inkscape"
     
     - name: autogen.sh
       run: ./autogen.sh
